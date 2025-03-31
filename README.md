@@ -1690,3 +1690,57 @@ curl -X 'GET' \
   "detail": "Page not found"
 }
 ```
+---
+
+##  Implementing Caching in the Django API
+### Steps to Implement Caching
+### 1. Install Redis and Required Packages
+```sh
+  pip install django-redis
+```
+
+For Docker-based setups, include Redis in *docker-compose.yml*:
+```yaml
+services:
+  redis:
+    image: redis:latest
+    restart: always
+    ports:
+      - "6379:6379"
+
+```
+#### 2. Configure Django to Use Redis
+Modify the Django settings (*config/settings.py*) to use Redis as the cache backend:
+```python
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": "redis://redis:6379/1",
+    }
+}
+
+```
+#### 3. Cache Expensive Queries
+In services.py, wrap database queries with cache.get_or_set. Example:
+```python
+from django.core.cache import cache
+from app.albums.models import Album
+from django.db.models import Count
+
+def get_album_summary():
+    cache_key = "album_summary"
+    cached_data = cache.get(cache_key)
+
+    if cached_data:
+        return cached_data
+
+    data = (Album.objects
+            .order_by('title')
+            .select_related('artist')
+            .only('id', 'title', 'artist__name')
+            .annotate(total_tracks=Count('album')))
+
+    cache.set(cache_key, data, timeout=3600)
+    return data
+
+```
